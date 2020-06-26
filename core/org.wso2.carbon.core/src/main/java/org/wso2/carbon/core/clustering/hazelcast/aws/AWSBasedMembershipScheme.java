@@ -36,10 +36,11 @@ import org.apache.commons.logging.LogFactory;
 import org.wso2.carbon.core.clustering.hazelcast.HazelcastCarbonClusterImpl;
 import org.wso2.carbon.core.clustering.hazelcast.HazelcastMembershipScheme;
 import org.wso2.carbon.core.clustering.hazelcast.HazelcastUtil;
-import org.wso2.carbon.core.clustering.hazelcast.wka.WKAConstants;
 import org.wso2.carbon.utils.CarbonUtils;
+import org.wso2.carbon.utils.xml.StringUtils;
 import org.wso2.securevault.SecretResolver;
 import org.wso2.securevault.SecretResolverFactory;
+import org.wso2.securevault.commons.MiscellaneousUtil;
 
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -58,7 +59,7 @@ public class AWSBasedMembershipScheme implements HazelcastMembershipScheme {
     public static final String SECURE_VAULT_SECRET_KEY = "Axis2.clustering.aws.secretKey";
     private final Map<String, Parameter> parameters;
     private final String primaryDomain;
-    private final NetworkConfig nwConfig;
+    private final NetworkConfig networkConfig;
     private HazelcastInstance primaryHazelcastInstance;
     private final List<ClusteringMessage> messageBuffer;
     private HazelcastCarbonClusterImpl carbonCluster;
@@ -72,7 +73,12 @@ public class AWSBasedMembershipScheme implements HazelcastMembershipScheme {
         this.primaryDomain = primaryDomain;
         this.primaryHazelcastInstance = primaryHazelcastInstance;
         this.messageBuffer = messageBuffer;
-        this.nwConfig = config.getNetworkConfig();
+        this.networkConfig = config.getNetworkConfig();
+    }
+
+    protected NetworkConfig getNetworkConfig() {
+
+        return networkConfig;
     }
 
     @Override
@@ -92,13 +98,14 @@ public class AWSBasedMembershipScheme implements HazelcastMembershipScheme {
 
     @Override
     public void init() throws ClusteringFault {
-        nwConfig.getJoin().getMulticastConfig().setEnabled(false);
-        nwConfig.getJoin().getTcpIpConfig().setEnabled(false);
-        AwsConfig awsConfig = nwConfig.getJoin().getAwsConfig();
+        networkConfig.getJoin().getMulticastConfig().setEnabled(false);
+        networkConfig.getJoin().getTcpIpConfig().setEnabled(false);
+        AwsConfig awsConfig = networkConfig.getJoin().getAwsConfig();
         awsConfig.setEnabled(true);
 
         Parameter accessKey = getParameter(AWSConstants.ACCESS_KEY);
         Parameter secretKey = getParameter(AWSConstants.SECRET_KEY);
+        Parameter iamRole = getParameter(AWSConstants.IAM_ROLE);
         Parameter securityGroup = getParameter(AWSConstants.SECURITY_GROUP);
         Parameter connTimeout = getParameter(AWSConstants.CONNECTION_TIMEOUT);
         Parameter hostHeader = getParameter(AWSConstants.HOST_HEADER);
@@ -109,38 +116,45 @@ public class AWSBasedMembershipScheme implements HazelcastMembershipScheme {
         SecretResolver secretResolver = getAxis2SecretResolver();
 
         if (accessKey != null) {
-            if (secretResolver != null && secretResolver.isInitialized() &&
-                    secretResolver.isTokenProtected(SECURE_VAULT_ACCESS_KEY)) {
-                awsConfig.setAccessKey(secretResolver.resolve(SECURE_VAULT_ACCESS_KEY));
+            if (secretResolver != null) {
+                String resolvedValue = MiscellaneousUtil.resolve(accessKey.getParameterElement(), secretResolver);
+                if (!StringUtils.isEmpty(resolvedValue)) {
+                    awsConfig.setAccessKey(resolvedValue);
+                }
             } else {
-                awsConfig.setAccessKey(((String)accessKey.getValue()).trim());
+                awsConfig.setAccessKey(((String) accessKey.getValue()).trim());
             }
         }
         if (secretKey != null) {
-            if (secretResolver != null && secretResolver.isInitialized() &&
-                    secretResolver.isTokenProtected(SECURE_VAULT_SECRET_KEY)) {
-                awsConfig.setSecretKey(secretResolver.resolve(SECURE_VAULT_SECRET_KEY));
+            if (secretResolver != null) {
+                String resolvedValue = MiscellaneousUtil.resolve(secretKey.getParameterElement(), secretResolver);
+                if (!StringUtils.isEmpty(resolvedValue)) {
+                    awsConfig.setSecretKey(resolvedValue);
+                }
             } else {
-                awsConfig.setSecretKey(((String)secretKey.getValue()).trim());
+                awsConfig.setSecretKey(((String) secretKey.getValue()).trim());
             }
         }
+        if (iamRole != null) {
+            awsConfig.setIamRole(((String) iamRole.getValue()).trim());
+        }
         if (securityGroup != null) {
-            awsConfig.setSecurityGroupName(((String)securityGroup.getValue()).trim());
+            awsConfig.setSecurityGroupName(((String) securityGroup.getValue()).trim());
         }
         if (connTimeout != null) {
             awsConfig.setConnectionTimeoutSeconds(Integer.parseInt(((String) connTimeout.getValue()).trim()));
         }
         if (hostHeader != null) {
-            awsConfig.setHostHeader(((String)hostHeader.getValue()).trim());
+            awsConfig.setHostHeader(((String) hostHeader.getValue()).trim());
         }
         if (region != null) {
-            awsConfig.setRegion(((String)region.getValue()).trim());
+            awsConfig.setRegion(((String) region.getValue()).trim());
         }
         if (tagKey != null) {
-            awsConfig.setTagKey(((String)tagKey.getValue()).trim());
+            awsConfig.setTagKey(((String) tagKey.getValue()).trim());
         }
         if (tagValue != null) {
-            awsConfig.setTagValue(((String)tagValue.getValue()).trim());
+            awsConfig.setTagValue(((String) tagValue.getValue()).trim());
         }
 
     }

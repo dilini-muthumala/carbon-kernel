@@ -24,7 +24,6 @@ import org.wso2.carbon.user.core.UserStoreException;
 import org.wso2.carbon.user.core.UserStoreManager;
 import org.wso2.carbon.user.core.listener.UserOperationEventListener;
 
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -296,51 +295,4 @@ public class AbstractUserOperationEventListener implements UserOperationEventLis
         return true;
     }
 
-    public boolean doPreGetUserClaimValue(String userName, String claim, String profileName,
-                                          UserStoreManager storeManager) throws UserStoreException {
-        return true;
-    }
-
-    public boolean doPreGetUserClaimValues(String userName, String[] claims,
-                                           String profileName, Map<String, String> claimMap, UserStoreManager storeManager) throws UserStoreException {
-        return true;
-    }
-
-    public boolean doPostGetUserClaimValue(String userName, String claim, List<String> claimValue,
-                                           String profileName, UserStoreManager storeManager) throws UserStoreException {
-        return true;
-    }
-
-    public boolean doPostGetUserClaimValues(String userName, String[] claims,
-                                            String profileName, Map<String, String> claimMap, UserStoreManager storeManager) throws UserStoreException {
-        return true;
-    }
-
-    /**
-     * Pre listener for the get user list method.
-     * @param claimUri Claim URI.
-     * @param claimValue Value of the given claim URI.
-     * @param returnUserNameList List of user names that this listiner will return.
-     * @param userStoreManager User store manager.
-     * @return False if error.
-     * @throws UserStoreException User Store Exception.
-     */
-    public boolean doPreGetUserList(String claimUri, String claimValue, final List<String> returnUserNameList,
-                                    UserStoreManager userStoreManager) throws UserStoreException {
-        return true;
-    }
-
-    /**
-     * Post listener for the get user list method.
-     * @param claimUri Claim URI.
-     * @param claimValue Value of the given claim URI.
-     * @param returnValues Values to be returned.
-     * @param userStoreManager User store manager.
-     * @return False if error.
-     * @throws UserStoreException User Store Exception.
-     */
-    public boolean doPostGetUserList(String claimUri, String claimValue, final List<String> returnValues,
-                                     UserStoreManager userStoreManager) throws UserStoreException {
-        return true;
-    }
 }

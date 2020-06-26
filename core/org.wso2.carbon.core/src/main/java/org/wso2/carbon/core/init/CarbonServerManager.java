@@ -52,6 +52,7 @@ import org.wso2.carbon.base.api.ServerConfigurationService;
 import org.wso2.carbon.core.CarbonAxisConfigurator;
 import org.wso2.carbon.core.CarbonConfigurationContextFactory;
 import org.wso2.carbon.core.CarbonThreadCleanup;
+import org.wso2.carbon.core.CarbonThreadFactory;
 import org.wso2.carbon.core.RegistryResources;
 import org.wso2.carbon.core.ServerInitializer;
 import org.wso2.carbon.core.ServerManagement;
@@ -95,6 +96,7 @@ import javax.servlet.Filter;
 import javax.servlet.ServletException;
 import java.io.File;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.lang.management.ManagementPermission;
 import java.net.SocketException;
 import java.util.Date;
@@ -175,8 +177,8 @@ public final class CarbonServerManager implements Controllable {
     private final Object pendingItemsLock = new Object();
 
     private GenericArtifactUnloader genericArtifactUnloader = new GenericArtifactUnloader();
-    private static final ScheduledExecutorService artifactsCleanupExec
-            = Executors.newScheduledThreadPool(1);
+    private static final ScheduledExecutorService artifactsCleanupExec =
+            Executors.newScheduledThreadPool(1, new CarbonThreadFactory(new ThreadGroup("ArtifactCleanupThread")));
 
     public CarbonServerManager() {
     }
@@ -865,6 +867,7 @@ public final class CarbonServerManager implements Controllable {
             setJULFileHandler();
             setJULConsoleHandler();
 
+            logger.setUseParentHandlers(false);
             logger.info("Shutdown complete");
             logger.info("Halting JVM");
 
@@ -1012,7 +1015,14 @@ public final class CarbonServerManager implements Controllable {
      * @throws IOException If an error occurs while setting handler
      */
     private void setJULConsoleHandler() throws IOException {
-        Handler consoleHandler = new ConsoleHandler();
+
+        Handler consoleHandler = new ConsoleHandler() {
+            @Override
+            protected synchronized void setOutputStream(OutputStream out) throws SecurityException {
+
+                super.setOutputStream(System.out);
+            }
+        };
         consoleHandler.setFormatter(new SimpleFormatter() {
 
             @Override

@@ -50,6 +50,7 @@
 <%@ page import="javax.xml.parsers.ParserConfigurationException" %>
 <%@ page import="java.io.ByteArrayInputStream" %>
 <%@ page import="java.io.IOException" %>
+<%@ page import="org.owasp.encoder.Encode" %>
 <%!
 
     public static String decode(String s) throws Exception {
@@ -125,7 +126,8 @@
     // Extract and decode all the parameters used to call WSRequest
     String uri, pattern, username, password, payload;
     try {
-        uri = decode(request.getParameter("uri"));
+        // Encode for html to avoid html content in uri being executed
+        uri = Encode.forHtml(decode(request.getParameter("uri")));
 		pattern = decode(request.getParameter("pattern"));
         username = decode(request.getParameter("username"));
         password = decode(request.getParameter("password"));
@@ -228,7 +230,7 @@
     ConfigurationContext configContext = (ConfigurationContext) config.getServletContext()
             .getAttribute(CarbonConstants.CLIENT_CONFIGURATION_CONTEXT);
     String cookie = (String) session.getAttribute(ServerConstants.ADMIN_SERVICE_COOKIE);
-    opts.setManageSession(true);
+    opts.setManageSession(false);
     opts.setProperty(org.apache.axis2.transport.http.HTTPConstants.COOKIE_STRING, request.getHeader("Cookie"));
     ServiceClient sc = new ServiceClient(configContext, null);
     sc.setOptions(opts);

@@ -25,17 +25,21 @@ import org.wso2.carbon.user.api.RealmConfiguration;
 import org.wso2.carbon.user.core.UserStoreException;
 import org.wso2.carbon.user.core.jdbc.JDBCRealmConstants;
 
-import javax.naming.InitialContext;
-import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.SQLIntegrityConstraintViolationException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
+import javax.naming.InitialContext;
+import javax.sql.DataSource;
+
+import static org.apache.commons.lang.ArrayUtils.EMPTY_STRING_ARRAY;
+import static org.wso2.carbon.user.core.constants.UserCoreErrorConstants.ErrorMessages.ERROR_CODE_DUPLICATE_WHILE_WRITING_TO_DATABASE;
 
 public class DatabaseUtil {
 
@@ -47,6 +51,7 @@ public class DatabaseUtil {
     private static DataSource dataSource = null;
     private static final String VALIDATION_INTERVAL = "validationInterval";
     private static final long DEFAULT_VALIDATION_INTERVAL = 30000;
+    private static final String SQL_STATEMENT_PARAMETER_PLACEHOLDER = "?";
 
     /**
      * Gets a database pooling connection. If a pool is not created this will create a connection pool.
@@ -303,6 +308,18 @@ public class DatabaseUtil {
                     (JDBCRealmConstants.ALTERNATE_USERNAME_ALLOWED)));
         }
 
+        if (StringUtils.isNotEmpty(realmConfig.getUserStoreProperty(JDBCRealmConstants.COMMIT_ON_RETURN)) &&
+                !realmConfig.getUserStoreProperty(JDBCRealmConstants.COMMIT_ON_RETURN).trim().isEmpty()) {
+            poolProperties.setCommitOnReturn(Boolean.parseBoolean(realmConfig.getUserStoreProperty
+                    (JDBCRealmConstants.COMMIT_ON_RETURN)));
+        }
+
+        if (StringUtils.isNotEmpty(realmConfig.getUserStoreProperty(JDBCRealmConstants.ROLLBACK_ON_RETURN)) &&
+                !realmConfig.getUserStoreProperty(JDBCRealmConstants.ROLLBACK_ON_RETURN).trim().isEmpty()) {
+            poolProperties.setRollbackOnReturn(Boolean.parseBoolean(realmConfig.getUserStoreProperty
+                    (JDBCRealmConstants.ROLLBACK_ON_RETURN)));
+        }
+
         setIsolationLevel(poolProperties, realmConfig.getUserStoreProperty(JDBCRealmConstants
                 .DEFAULT_TRANSACTION_ISOLATION));
 
@@ -523,6 +540,18 @@ public class DatabaseUtil {
                     (JDBCRealmConstants.ALTERNATE_USERNAME_ALLOWED)));
         }
 
+        if (StringUtils.isNotEmpty(realmConfig.getUserStoreProperty(JDBCRealmConstants.COMMIT_ON_RETURN)) &&
+                !realmConfig.getUserStoreProperty(JDBCRealmConstants.COMMIT_ON_RETURN).trim().isEmpty()) {
+            poolProperties.setCommitOnReturn(Boolean.parseBoolean(realmConfig.getUserStoreProperty
+                    (JDBCRealmConstants.COMMIT_ON_RETURN)));
+        }
+
+        if (StringUtils.isNotEmpty(realmConfig.getUserStoreProperty(JDBCRealmConstants.ROLLBACK_ON_RETURN)) &&
+                !realmConfig.getUserStoreProperty(JDBCRealmConstants.ROLLBACK_ON_RETURN).trim().isEmpty()) {
+            poolProperties.setRollbackOnReturn(Boolean.parseBoolean(realmConfig.getUserStoreProperty
+                    (JDBCRealmConstants.ROLLBACK_ON_RETURN)));
+        }
+
         setIsolationLevel(poolProperties, realmConfig.getRealmProperty(JDBCRealmConstants
                 .DEFAULT_TRANSACTION_ISOLATION));
 
@@ -582,6 +611,60 @@ public class DatabaseUtil {
             if (log.isDebugEnabled()) {
                 log.debug(errorMessage, e);
             }
+            throw new UserStoreException(errorMessage, e);
+        } finally {
+            DatabaseUtil.closeAllConnections(null, rs, prepStmt);
+        }
+    }
+
+    /**
+     * Get {@link String}[] of values from the database for the given SQL query and the constraints.
+     *
+     * @param dbConnection Database {@link Connection}.
+     * @param sqlStmt      {@link String} SQL query.
+     * @param maxRows      Upper limit to the number of rows returned from the database.
+     * @param queryTimeout SQL query timeout limit in seconds. Zero means there is no limit.
+     * @param params       Values passed for the SQL query placeholders.
+     * @return {@link String}[] of results.
+     * @throws UserStoreException
+     **/
+    public static String[] getStringValuesFromDatabaseWithConstraints(Connection dbConnection, String sqlStmt,
+                                                                      int maxRows, int queryTimeout, Object... params)
+            throws UserStoreException {
+
+        PreparedStatement prepStmt = null;
+        ResultSet rs = null;
+        try {
+            String[] values = null;
+            prepStmt = dbConnection.prepareStatement(sqlStmt);
+            if (params != null && params.length > 0) {
+                validateParameterCount(sqlStmt, params);
+                populatePreparedStatementParameters(prepStmt, params);
+            }
+
+            if (maxRows >= 0) {
+                prepStmt.setMaxRows(maxRows);
+            }
+
+            if (queryTimeout >= 0) {
+                prepStmt.setQueryTimeout(queryTimeout);
+            }
+
+            rs = prepStmt.executeQuery();
+            List<String> lst = new ArrayList<String>();
+
+            while (rs.next()) {
+                String name = rs.getString(1);
+                lst.add(name);
+            }
+            if (lst.size() > 0) {
+                values = lst.toArray(new String[lst.size()]);
+            }
+            return values == null ? EMPTY_STRING_ARRAY : values;
+        } catch (SQLException e) {
+            String errorMessage =
+                    "Error while getting values from the database using " + getLoggableSqlString(sqlStmt, params) +
+                            " and maxRows: " + maxRows + " and queryTimeout: " + queryTimeout;
             throw new UserStoreException(errorMessage, e);
         } finally {
             DatabaseUtil.closeAllConnections(null, rs, prepStmt);
@@ -812,9 +895,7 @@ public class DatabaseUtil {
                 log.debug("Executed a batch update. Query is : " + sqlStmt + ": and result is"
                         + Arrays.toString(count));
             }
-            if (localConnection) {
-                dbConnection.commit();
-            }
+            dbConnection.commit();
         } catch (SQLException e) {
             String errorMessage = "Using sql : " + sqlStmt + " " + e.getMessage();
             if (log.isDebugEnabled()) {
@@ -860,7 +941,13 @@ public class DatabaseUtil {
             if (log.isDebugEnabled()) {
                 log.debug(errorMessage, e);
             }
-            throw new UserStoreException(errorMessage, e);
+            if (e instanceof SQLIntegrityConstraintViolationException) {
+                // Duplicate entry
+                throw new UserStoreException(e.getMessage(), ERROR_CODE_DUPLICATE_WHILE_WRITING_TO_DATABASE.getCode(), e);
+            } else {
+                // Other SQL Exception
+                throw new UserStoreException(e.getMessage(), e);
+            }
         } finally {
             DatabaseUtil.closeAllConnections(null, prepStmt);
         }
@@ -948,6 +1035,68 @@ public class DatabaseUtil {
             }
         } catch (SQLException e1) {
             log.error("An error occurred while rolling back transactions. ", e1);
+        }
+    }
+
+    /**
+     * <p>
+     * Returns a string representation of the sql statement and it's parameters. The returned string will take the
+     * following form.
+     * <br>
+     * <br>"query: "<i>SQL_STATEMENT</i>" with parameters: {..., Input_Value_<i>NUMBER</i>: <i>PARAMETER_VALUE</i>, .
+     * ..}"
+     * <br>
+     * <br>Ex: <i>query: "SELECT * FROM TABLE WHERE COLUMN1 = ? AND COLUMN2 = ?" with parameters: {Input_Value_1: 7,
+     * Input_Value_2: 3}</i>
+     * </p>
+     *
+     * @param sqlStmt SQL statement. Ex: "SELECT * FROM TABLE WHERE COLUMN1 = ? AND COLUMN2 = ?"
+     * @param params Parameters array.
+     * @return A loggable string of the statement and it's parameters.
+     */
+    public static String getLoggableSqlString(String sqlStmt, Object[] params) {
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("query: \"" + sqlStmt + "\" ");
+
+        // Append parameters.
+        sb.append("with parameters: {");
+        String prefix = "";
+        for (int i = 0; i < params.length; i++) {
+            sb.append(prefix);
+            prefix = ", ";
+            Object param = params[i];
+            sb.append("Input_Value_" + i + ": " + param);
+        }
+        sb.append("}");
+        return sb.toString();
+    }
+
+    private static void populatePreparedStatementParameters(PreparedStatement prepStmt, Object[] params) throws SQLException {
+
+        for (int i = 0; i < params.length; i++) {
+            Object param = params[i];
+            int queryParamIndex = i + 1;
+            if (param == null) {
+                //allow to send null data since null allowed values can be in the table. eg: domain name
+                prepStmt.setString(queryParamIndex, null);
+            } else if (param instanceof String) {
+                prepStmt.setString(queryParamIndex, (String) param);
+            } else if (param instanceof Integer) {
+                prepStmt.setInt(queryParamIndex, (Integer) param);
+            }
+        }
+    }
+
+    private static void validateParameterCount(String sqlStmt, Object[] params) throws UserStoreException {
+
+        if (params != null && sqlStmt != null) {
+            int placeholderCount = StringUtils.countMatches(sqlStmt, SQL_STATEMENT_PARAMETER_PLACEHOLDER);
+            if (placeholderCount != params.length) {
+                String errMsg = "Parameter count: " + params.length + ", mismatches with the number of placeholders: "
+                        + placeholderCount ;
+                throw new UserStoreException(errMsg);
+            }
         }
     }
 }

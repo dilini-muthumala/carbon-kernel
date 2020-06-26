@@ -46,8 +46,11 @@ public class UserCoreConstants {
 
     public static final String UM_TENANT_COLUMN = "UM_TENANT_ID";
 
+    public static final String SQL_ESCAPE_KEYWORD = "ESCAPE";
+
     public static final String SYSTEM_RESOURCE = "System";
     public static final String MSSQL_TYPE = "mssql";
+    public static final String MYSQL_TYPE = "mysql";
     public static final String OPENEDGE_TYPE = "openedge";
 
     /*To hold a boolean property to track the first startup of the server.*/
@@ -57,6 +60,8 @@ public class UserCoreConstants {
     public static final int MAX_SEARCH_TIME = 10000;   // ms
 
     public static final String INTERNAL_DOMAIN = "Internal";
+    public static final String APPLICATION_DOMAIN = "Application";
+    public static final String INTERNAL_DOMAIN_LOWER_CASED = "internal";
     public static final String PRIMARY_DEFAULT_DOMAIN_NAME = "PRIMARY";
     public static final String SYSTEM_DOMAIN_NAME = "SYSTEM";
 
@@ -128,6 +133,8 @@ public class UserCoreConstants {
         public static final String LOCAL_NAME_EVERYONE_ROLE = "EveryOneRoleName";
         public static final String LOCAL_NAME_ANONYMOUS_USER = "AnonymousUser";
         public static final String LOCAL_PASSWORDS_EXTERNALLY_MANAGED = "PasswordsExternallyManaged";
+        public static final String OVERRIDE_USERNAME_CLAIM_FROM_INTERNAL_USERNAME =
+                "OverrideUsernameClaimFromInternalUsername";
         public static final String ATTR_NAME_CLASS = "class";
         public static final String ATTR_NAME_PROP_NAME = "name";
         public static final String PROPERTY_EVERYONEROLE_AUTHORIZATION = "EveryoneRoleManagementPermissions";
@@ -148,6 +155,7 @@ public class UserCoreConstants {
         public static final String PROPERTY_MAX_USER_LIST = "MaxUserNameListLength";
         public static final String PROPERTY_MAX_ROLE_LIST = "MaxRoleNameListLength";
         public static final String PROPERTY_MAX_SEARCH_TIME = "MaxSearchQueryTime";
+        public static final String PROPERTY_MAX_USER_LIST_FOR_SCIM = "EnableMaxUserLimitForSCIM";
 
         public static final String READ_GROUPS_ENABLED = "ReadGroups";
 
@@ -165,7 +173,9 @@ public class UserCoreConstants {
         public static final String PROPERTY_JS_REG_EX = "PasswordJavaScriptRegEx";
 
         public static final String PROPERTY_USER_NAME_JAVA_REG_EX = "UsernameJavaRegEx";
+        public static final String PROPERTY_USER_NAME_JAVA_REG = "UserNameJavaRegEx";
         public static final String PROPERTY_USER_NAME_JS_REG_EX = "UsernameJavaScriptRegEx";
+        public static final String PROPERTY_USER_NAME_JS_REG = "UserNameJavaScriptRegEx";
         public static final String PROPERTY_USER_NAME_WITH_EMAIL_JS_REG_EX = "UsernameWithEmailJavaScriptRegEx";
 
         public static final String PROPERTY_ROLE_NAME_JAVA_REG_EX = "RolenameJavaRegEx";
@@ -210,6 +220,8 @@ public class UserCoreConstants {
 
         public static final String SHARED_GROUPS_ENABLED = "SharedGroupEnabled";
         public static final String DOMAIN_NAME_XPATH = "//UserStoreManager/Property[@name='DomainName']";
+        public static final String LEADING_OR_TRAILING_SPACE_ALLOWED_IN_USERNAME =
+                "LeadingOrTrailingSpaceAllowedInUserName";
     }
 
     public static final class ClaimTypeURIs {
